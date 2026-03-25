@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        body { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: #111; color: #fff; overflow: hidden; 
+            touch-action: none; font-family: sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        
+        /* ЗОНА РИСОВАНИЯ (Просто пустой квадрат на весь экран) */
+        #touch-zone {
+            width: 100vw; height: 100vw; background: #222;
+            position: relative; touch-action: none;
+            box-shadow: 0 0 20px rgba(255, 64, 129, 0.2);
+            border-bottom: 2px solid #ff4081;
+        }
+        
+        /* Крошечный курсор (чтобы видеть, где ведешь пальцем) */
+        #cursor {
+            position: absolute; width: 10px; height: 10px;
+            background: #ff4081; border-radius: 50%;
+            pointer-events: none; display: none;
+            transform: translate(-50%, -50%);
+        }
+
+        #info { margin-top: 20px; font-size: 16px; text-align: center; color: #aaa; }
+        #points { font-size: 32px; font-weight: bold; color: #ff4081; margin-top: 5px; }
+        #bar { position: fixed; top: 0; left: 0; height: 5px; background: #ff4081; width: 0%; z-index: 200; }
+        
+        #clear-btn { 
+            position: fixed; top: 15px; right: 15px; padding: 10px 15px; 
+            background: #444; color: #fff; border: 1px solid #666; 
+            border-radius: 8px; font-weight: bold; z-index: 100; 
+        }
+    </style>
+</head>
+<body>
+    <div id="bar"></div>
+    <button id="clear-btn">Стереть</button>
+    
+    <div id="touch-zone">
+        <div id="cursor"></div>
+    </div>
+    
+    <div id="info">Магия происходит на сервере ✨<br>Веди пальцем по квадрату</div>
+    <div id="points">0</div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); // Фикс свайпа вниз
+
+        const zone = document.getElementById('touch-zone');
+        const cursor = document.getElementById('cursor');
+        const pointsDisplay = document.getElementById('points');
+        const bar = document.getElementById('bar');
+        
+        // Разрешение для бота (256x256 для HEX-сжатия)
+        const res = 256; 
+        
+        let drawing = false;
+        let data = ""; 
+        let lastCx = -1, lastCy = -1;
+        let pointsCount = 0;
+
+        function getCoords(e) {
+            const rect = zone.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // Визуальный курсор
+            cursor.style.left = (clientX - rect.left) + 'px';
+            cursor.style.top = (clientY - rect.top) + 'px';
+            
+            return {
+                x: Math.max(0, Math.min(255, Math.round((clientX - rect.left) * (res / rect.width)))),
+                y: Math.max(0, Math.min(255, Math.round((clientY - rect.top) * (res / rect.height))))
+            };
+        }
+
+        function toHex(n) { return n.toString(16).padStart(2, '0'); }
+
+        function start(e) {
+            e.preventDefault();
+            drawing = true;
+            cursor.style.display = 'block';
+            
+            const {x, y} = getCoords(e);
+            
+            let cx = toHex(x), cy = toHex(y);
+            data += "!" + cx + cy; // Маркер начала линии
+            lastCx = cx; lastCy = cy;
+            
+            pointsCount++;
+            pointsDisplay.innerText = pointsCount;
+        }
+
+        function move(e) {
+            e.preventDefault();
+            if (!drawing) return;
+            const {x, y} = getCoords(e);
+            
+            let cx = toHex(x), cy = toHex(y);
+            
+            // Оптимизация: шлем точку только если сдвинулись
+            if (cx !== lastCx || cy !== lastCy) {
+                data += cx + cy;
+                lastCx = cx; lastCy = cy;
+                
+                pointsCount++;
+                pointsDisplay.innerText = pointsCount;
+                bar.style.width = (data.length / 4000 * 100) + "%";
+            }
+        }
+
+        function stop(e) {
+            e.preventDefault();
+            drawing = false;
+            cursor.style.display = 'none';
+        }
+
+        // Бронебойные слушатели событий для любого телефона
+        zone.addEventListener('touchstart', start, {passive: false});
+        zone.addEventListener('touchmove', move, {passive: false});
+        zone.addEventListener('touchend', stop, {passive: false});
+        zone.addEventListener('touchcancel', stop, {passive: false});
+
+        // Для ПК
+        zone.addEventListener('mousedown', start);
+        zone.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
+
+        document.getElementById('clear-btn').onclick = () => {
+            data = ""; pointsCount = 0;
+            pointsDisplay.innerText = pointsCount;
+            bar.style.width = "0%";
+        };
+
+        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
+        tg.MainButton.show();
+        tg.MainButton.onClick(() => {
+            if (data.length < 5) return alert("Нарисуй что-нибудь!");
+            if (data.length > 4000) return alert("Слишком длинная анимация!");
+            tg.sendData(data);
+        });
+    </script>
+</body>
+</html>
