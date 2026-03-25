@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; }
-        canvas { width: 100vw; height: 100vw; display: block; background: #fdfdfd; }
-        #clear-btn { position: fixed; top: 10px; right: 10px; padding: 10px; background: #ff4444; color: #fff; border: none; border-radius: 8px; z-index: 10; font-family: sans-serif; }
+        body { margin: 0; padding: 0; background: #f0f0f0; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { width: 100vw; height: 100vw; display: block; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 10px 20px; background: #ff4444; color: #fff; border: none; border-radius: 10px; z-index: 10; font-weight: bold; }
+        #status { position: fixed; bottom: 85px; width: 100%; text-align: center; color: #999; font-size: 13px; }
     </style>
 </head>
 <body>
     <button id="clear-btn">Очистить</button>
+    <div id="status">Нарисуй что-нибудь ❤️</div>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -21,17 +23,22 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Внутреннее разрешение для точности
-        canvas.width = 500;
-        canvas.height = 500;
+        // Внутреннее разрешение холста
+        const resolution = 500;
+        canvas.width = resolution;
+        canvas.height = resolution;
 
+        // Настройка кисти для экрана
         ctx.strokeStyle = '#ff4081';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 6;
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
-        let paths = []; // Массив всех линий
+        let paths = []; 
         let currentPath = []; 
         let drawing = false;
+        let lastX = 0;
+        let lastY = 0;
 
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
@@ -43,42 +50,63 @@
             };
         }
 
-        canvas.addEventListener('touchstart', (e) => {
+        function startDrawing(e) {
             drawing = true;
             const {x, y} = getCoords(e);
+            lastX = x;
+            lastY = y;
             currentPath = [x, y];
+            
             ctx.beginPath();
             ctx.moveTo(x, y);
-        });
+        }
 
-        canvas.addEventListener('touchmove', (e) => {
+        function draw(e) {
             if (!drawing) return;
             const {x, y} = getCoords(e);
-            currentPath.push(x, y);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-        });
 
-        canvas.addEventListener('touchend', () => {
-            drawing = false;
-            if (currentPath.length > 0) {
-                paths.push(currentPath.join(',')); // Сохраняем линию как строку "x1,y1,x2,y2..."
+            // Оптимизация: записываем точку, только если сдвинулись на 2+ пикселя
+            const dist = Math.hypot(x - lastX, y - lastY);
+            if (dist > 2) {
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                
+                currentPath.push(x, y);
+                lastX = x;
+                lastY = y;
             }
-        });
+        }
+
+        function stopDrawing() {
+            if (!drawing) return;
+            drawing = false;
+            if (currentPath.length > 2) {
+                paths.push(currentPath.join(','));
+            }
+            ctx.closePath();
+        }
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+        canvas.addEventListener('touchend', stopDrawing);
 
         document.getElementById('clear-btn').onclick = () => {
-            ctx.clearRect(0, 0, 500, 500);
+            ctx.clearRect(0, 0, resolution, resolution);
             paths = [];
+            document.getElementById('status').innerText = "Очищено. Рисуй заново!";
         };
 
         tg.MainButton.setText("ОТПРАВИТЬ ❤️");
         tg.MainButton.show();
         
         tg.MainButton.onClick(() => {
-            // Формат: Линия1;Линия2;Линия3
             const data = paths.join(';'); 
+            if (data.length === 0) {
+                alert("Сначала нарисуй что-нибудь!");
+                return;
+            }
             if (data.length > 4000) {
-                alert("Рисунок слишком длинный! Нарисуй чуть проще.");
+                alert("Рисунок слишком детальный! Попробуй чуть проще.");
             } else {
                 tg.sendData(data);
             }
