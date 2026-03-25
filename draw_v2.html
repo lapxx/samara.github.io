@@ -2,152 +2,115 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Блокируем абсолютно всё системное выделение и жесты */
-        html, body {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            background: #ffffff; overflow: hidden;
-            touch-action: none !important;
-            -webkit-touch-callout: none !important;
-            -webkit-user-select: none !important;
-            user-select: none !important;
-            -webkit-tap-highlight-color: transparent !important;
-        }
-        
-        /* Холст, на котором мы РИСУЕМ (он под пленкой) */
-        canvas {
-            position: absolute; top: 0; left: 0;
-            width: 100vw; height: 100vw;
-            background: #ffffff; z-index: 1;
-            pointer-events: none; /* Холст вообще не ловит касания! */
-        }
-        
-        /* НЕВИДИМАЯ ПЛЕНКА, которая ЛОВИТ касания (Android её обожает) */
-        #touch-layer {
-            position: absolute; top: 0; left: 0;
-            width: 100vw; height: 100vw;
-            z-index: 2; /* Она лежит поверх холста */
-            touch-action: none;
-        }
-
-        #clear-btn { 
-            position: fixed; top: 15px; right: 15px; 
-            padding: 12px 20px; background: #ff4444; color: #fff; 
-            border: none; border-radius: 12px; z-index: 100; 
-            font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        }
-        #bar { position: fixed; top: 0; left: 0; height: 6px; background: #ff4081; width: 0%; z-index: 200; transition: width 0.1s linear; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #fff; touch-action: none; }
+        /* Холст занимает ровно 100% ширины экрана, образуя квадрат */
+        canvas { display: block; width: 100vw; height: 100vw; background: #fff; touch-action: none; }
+        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px 20px; background: #ff4444; color: #fff; border: none; border-radius: 10px; font-weight: bold; z-index: 100; }
+        #bar { position: fixed; top: 0; left: 0; height: 5px; background: #ff4081; width: 0%; z-index: 200; }
     </style>
 </head>
 <body>
     <div id="bar"></div>
     <button id="clear-btn">Очистить</button>
-    
-    <!-- Сначала холст -->
     <canvas id="canvas"></canvas>
-    <!-- Потом прозрачная пленка поверх него -->
-    <div id="touch-layer"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
         const canvas = document.getElementById('canvas');
-        const touchLayer = document.getElementById('touch-layer');
         const ctx = canvas.getContext('2d');
         
-        // Внутреннее разрешение
-        const res = 256; 
-        canvas.width = res; canvas.height = res;
+        // 1. ИДЕАЛЬНОЕ РАЗРЕШЕНИЕ: 1 пиксель холста = 1 пиксель экрана
+        const size = window.innerWidth;
+        canvas.width = size;
+        canvas.height = size;
 
-        // Настройка кисти
-        ctx.strokeStyle = '#ff4081'; 
-        ctx.lineWidth = 10; 
-        ctx.lineCap = 'round'; 
+        // Кисть адаптируется под размер экрана телефона
+        ctx.strokeStyle = '#ff4081';
+        ctx.lineWidth = size / 35; 
+        ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
         let drawing = false;
-        let data = ""; 
-        let lastX = 0, lastY = 0;
+        let data = "";
+        let lastCx = -1, lastCy = -1;
 
-        // Функция получения координат с ПЛЕНКИ
-        function getCoords(e) {
-            const rect = touchLayer.getBoundingClientRect();
-            // Поддержка и тача (телефон), и мыши (ПК)
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            
-            return {
-                x: Math.max(0, Math.min(255, Math.round((clientX - rect.left) * (res / rect.width)))),
-                y: Math.max(0, Math.min(255, Math.round((clientY - rect.top) * (res / rect.height))))
-            };
+        // 2. ФУНКЦИЯ СЖАТИЯ (переводит реальные пиксели экрана в формат 0-255 для бота)
+        function compress(val) {
+            let v = Math.max(0, Math.min(255, Math.round((val / size) * 255)));
+            return v.toString(16).padStart(2, '0');
         }
 
-        function toHex(n) { return n.toString(16).padStart(2, '0'); }
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
 
-        function startDraw(e) {
-            e.preventDefault(); // Глушим скролл Андроида насмерть
+        function start(e) {
+            e.preventDefault(); // ГЛАВНОЕ ПРАВИЛО АНДРОИДА: глушим скролл
             drawing = true;
-            const {x, y} = getCoords(e);
+            const {x, y} = getPos(e);
             
             ctx.beginPath();
             ctx.moveTo(x, y);
-            
-            // Рисуем точку, если человек просто тапнул
-            ctx.lineTo(x+0.1, y+0.1); 
+            ctx.lineTo(x + 0.1, y + 0.1); // Рисуем точку от простого касания
             ctx.stroke();
 
-            data += "!" + toHex(x) + toHex(y);
-            lastX = x; lastY = y;
+            let cx = compress(x), cy = compress(y);
+            data += "!" + cx + cy;
+            lastCx = cx; lastCy = cy;
         }
 
-        function moveDraw(e) {
-            e.preventDefault(); // Глушим скролл Андроида насмерть
+        function move(e) {
+            e.preventDefault(); // Глушим скролл
             if (!drawing) return;
-            const {x, y} = getCoords(e);
+            const {x, y} = getPos(e);
             
-            // Рисуем линию визуально
             ctx.lineTo(x, y);
             ctx.stroke();
 
-            // Пишем в строку только при сдвиге > 1 (оптимизация)
-            if (Math.hypot(x - lastX, y - lastY) > 1) {
-                data += toHex(x) + toHex(y);
-                lastX = x; lastY = y;
+            let cx = compress(x), cy = compress(y);
+            // Оптимизация: пишем в строку только если сжатая координата изменилась
+            if (cx !== lastCx || cy !== lastCy) {
+                data += cx + cy;
+                lastCx = cx; lastCy = cy;
+                document.getElementById('bar').style.width = (data.length / 4000 * 100) + "%";
             }
-
-            document.getElementById('bar').style.width = (data.length / 4000 * 100) + "%";
         }
 
-        function stopDraw(e) {
+        function stop(e) {
             e.preventDefault();
             drawing = false;
         }
 
-        // Вешаем слушатели на НЕВИДИМУЮ ПЛЕНКУ
-        // Телефоны (с флагом passive: false, чтобы работал preventDefault)
-        touchLayer.addEventListener('touchstart', startDraw, {passive: false});
-        touchLayer.addEventListener('touchmove', moveDraw, {passive: false});
-        touchLayer.addEventListener('touchend', stopDraw, {passive: false});
-        touchLayer.addEventListener('touchcancel', stopDraw, {passive: false});
+        // 3. ВЕШАЕМ СЛУШАТЕЛИ ЖЕСТКО С passive: false (Бронебойно для Android)
+        canvas.addEventListener('touchstart', start, {passive: false});
+        canvas.addEventListener('touchmove', move, {passive: false});
+        canvas.addEventListener('touchend', stop, {passive: false});
+        canvas.addEventListener('touchcancel', stop, {passive: false});
 
-        // ПК (Мышка)
-        touchLayer.addEventListener('mousedown', startDraw);
-        touchLayer.addEventListener('mousemove', moveDraw);
-        window.addEventListener('mouseup', stopDraw);
+        // Для проверки с ПК
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
 
         document.getElementById('clear-btn').onclick = () => {
-            ctx.clearRect(0, 0, res, res);
+            ctx.clearRect(0, 0, size, size);
             data = "";
             document.getElementById('bar').style.width = "0%";
         };
 
-        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
+        tg.MainButton.setText("ОТПРАВИТЬ ЛАВ ❤️");
         tg.MainButton.show();
         tg.MainButton.onClick(() => {
             if (data.length < 5) return alert("Нарисуй что-нибудь!");
+            if (data.length > 4000) return alert("Слишком длинный рисунок!");
             tg.sendData(data);
         });
     </script>
