@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { -webkit-touch-callout: none; -webkit-user-select: none; }
+        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vw; background: #fff; }
+        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px; background: #ff4444; color: #fff; border: none; border-radius: 10px; z-index: 100; font-weight: bold; }
+        #bar { position: fixed; top: 0; left: 0; height: 5px; background: #ff4081; width: 0%; z-index: 200; transition: width 0.2s; }
+    </style>
+</head>
+<body>
+    <div id="bar"></div>
+    <button id="clear-btn">Очистить</button>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const res = 256; // Уменьшаем разрешение координат до 1 байта (0-255)
+        canvas.width = res; canvas.height = res;
+
+        ctx.strokeStyle = '#ff4081'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+        let drawing = false;
+        let data = ""; 
+        let lastX = -1, lastY = -1;
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const t = e.touches ? e.touches[0] : e;
+            return {
+                x: Math.round((t.clientX - rect.left) * (res / rect.width)),
+                y: Math.round((t.clientY - rect.top) * (res / rect.height))
+            };
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            drawing = true;
+            const {x, y} = getCoords(e);
+            ctx.beginPath(); ctx.moveTo(x, y);
+            // Маркер нового мазка: символ "!" (33) + координаты
+            data += "!" + String.fromCharCode(x + 32) + String.fromCharCode(y + 32);
+            lastX = x; lastY = y;
+            e.preventDefault();
+        }, {passive: false});
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!drawing) return;
+            const {x, y} = getCoords(e);
+
+            // Оптимизация: не пишем точку, если сдвиг слишком мал
+            if (Math.hypot(x - lastX, y - lastY) < 2) return;
+
+            ctx.lineTo(x, y); ctx.stroke();
+            data += String.fromCharCode(x + 32) + String.fromCharCode(y + 32);
+            
+            lastX = x; lastY = y;
+            
+            // Визуальный индикатор заполнения лимита (4000 символов)
+            document.getElementById('bar').style.width = (data.length / 4000 * 100) + "%";
+            e.preventDefault();
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', () => { drawing = false; });
+
+        document.getElementById('clear-btn').onclick = () => {
+            ctx.clearRect(0, 0, res, res);
+            data = "";
+            document.getElementById('bar').style.width = "0%";
+        };
+
+        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
+        tg.MainButton.show();
+        tg.MainButton.onClick(() => {
+            if (data.length < 5) return alert("Нарисуй что-нибудь!");
+            if (data.length > 4000) alert("Слишком сложный рисунок! Чуть-чуть сотри.");
+            else tg.sendData(data);
+        });
+    </script>
+</body>
+</html>
