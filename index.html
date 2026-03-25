@@ -5,10 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; overflow: hidden; touch-action: none; font-family: sans-serif; }
-        canvas { width: 100vw; height: 100vw; display: block; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 10px 20px; background: #ff4444; color: #fff; border: none; border-radius: 10px; z-index: 10; font-weight: bold; }
-        #status { position: fixed; bottom: 85px; width: 100%; text-align: center; color: #999; font-size: 13px; }
+        body { margin: 0; padding: 0; background: #ffffff; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { 
+            display: block; 
+            background: #ffffff; 
+            width: 100vw; 
+            height: 100vw; 
+            touch-action: none;
+            -webkit-user-select: none;
+        }
+        #clear-btn { 
+            position: fixed; top: 15px; right: 15px; 
+            padding: 12px 24px; background: #ff4444; color: #fff; 
+            border: none; border-radius: 12px; z-index: 100; 
+            font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #status { position: fixed; bottom: 85px; width: 100%; text-align: center; color: #999; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -23,93 +35,90 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Внутреннее разрешение холста
-        const resolution = 500;
-        canvas.width = resolution;
-        canvas.height = resolution;
+        // Фиксированное разрешение для отправки боту
+        const res = 500;
+        canvas.width = res;
+        canvas.height = res;
 
-        // Настройка кисти для экрана
+        // Настройки кисти
         ctx.strokeStyle = '#ff4081';
-        ctx.lineWidth = 6;
+        ctx.lineWidth = 10;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        let paths = []; 
-        let currentPath = []; 
         let drawing = false;
-        let lastX = 0;
-        let lastY = 0;
+        let paths = []; 
+        let currentPath = [];
 
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
+            // Поддержка и тача, и мышки
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
             return {
-                x: Math.round((clientX - rect.left) * (canvas.width / rect.width)),
-                y: Math.round((clientY - rect.top) * (canvas.height / rect.height))
+                x: Math.round((clientX - rect.left) * (res / rect.width)),
+                y: Math.round((clientY - rect.top) * (res / rect.height))
             };
         }
 
-        function startDrawing(e) {
+        function start(e) {
             drawing = true;
             const {x, y} = getCoords(e);
-            lastX = x;
-            lastY = y;
-            currentPath = [x, y];
-            
             ctx.beginPath();
             ctx.moveTo(x, y);
+            currentPath = [x, y];
+            e.preventDefault();
         }
 
-        function draw(e) {
+        function move(e) {
             if (!drawing) return;
             const {x, y} = getCoords(e);
-
-            // Оптимизация: записываем точку, только если сдвинулись на 2+ пикселя
-            const dist = Math.hypot(x - lastX, y - lastY);
-            if (dist > 2) {
-                ctx.lineTo(x, y);
-                ctx.stroke();
-                
-                currentPath.push(x, y);
-                lastX = x;
-                lastY = y;
-            }
+            
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            currentPath.push(x, y);
+            e.preventDefault();
         }
 
-        function stopDrawing() {
+        function stop() {
             if (!drawing) return;
             drawing = false;
-            if (currentPath.length > 2) {
+            if (currentPath.length > 0) {
                 paths.push(currentPath.join(','));
             }
-            ctx.closePath();
         }
 
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
-        canvas.addEventListener('touchend', stopDrawing);
+        // События тача (телефон)
+        canvas.addEventListener('touchstart', start, {passive: false});
+        canvas.addEventListener('touchmove', move, {passive: false});
+        canvas.addEventListener('touchend', stop);
 
+        // События мышки (ПК)
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
+
+        // Кнопка очистки
         document.getElementById('clear-btn').onclick = () => {
-            ctx.clearRect(0, 0, resolution, resolution);
+            ctx.clearRect(0, 0, res, res);
             paths = [];
-            document.getElementById('status').innerText = "Очищено. Рисуй заново!";
+            document.getElementById('status').innerText = "Очищено!";
         };
 
+        // Главная кнопка ТГ
         tg.MainButton.setText("ОТПРАВИТЬ ❤️");
         tg.MainButton.show();
         
         tg.MainButton.onClick(() => {
-            const data = paths.join(';'); 
-            if (data.length === 0) {
+            const data = paths.join(';');
+            if (paths.length === 0) {
                 alert("Сначала нарисуй что-нибудь!");
                 return;
             }
-            if (data.length > 4000) {
-                alert("Рисунок слишком детальный! Попробуй чуть проще.");
-            } else {
-                tg.sendData(data);
-            }
+            // Отправляем строку координат
+            tg.sendData(data);
         });
     </script>
 </body>
