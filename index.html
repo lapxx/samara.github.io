@@ -5,15 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; font-family: sans-serif; }
-        canvas { width: 100vw; height: 100vw; display: block; background: #fff; }
-        #clear-btn { position: fixed; top: 10px; right: 10px; padding: 8px; background: #ff4444; color: #fff; border: none; border-radius: 5px; z-index: 10; }
-        #info { position: fixed; bottom: 80px; width: 100%; text-align: center; color: #888; font-size: 12px; pointer-events: none; }
+        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; }
+        canvas { width: 100vw; height: 100vw; display: block; background: #fdfdfd; }
+        #clear-btn { position: fixed; top: 10px; right: 10px; padding: 10px; background: #ff4444; color: #fff; border: none; border-radius: 8px; z-index: 10; font-family: sans-serif; }
     </style>
 </head>
 <body>
     <button id="clear-btn">Очистить</button>
-    <div id="info">Рисуй проще, если не отправляется</div>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -23,14 +21,16 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // УМЕНЬШАЕМ ДО 100x100. Это гарантирует прохождение через лимит 4КБ.
-        canvas.width = 100;
-        canvas.height = 100;
+        // Внутреннее разрешение для точности
+        canvas.width = 500;
+        canvas.height = 500;
 
-        ctx.strokeStyle = '#ff4081'; // Розовый
-        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#ff4081';
+        ctx.lineWidth = 4;
         ctx.lineCap = 'round';
 
+        let paths = []; // Массив всех линий
+        let currentPath = []; 
         let drawing = false;
 
         function getCoords(e) {
@@ -38,32 +38,47 @@
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
             return {
-                x: (clientX - rect.left) * (canvas.width / rect.width),
-                y: (clientY - rect.top) * (canvas.height / rect.height)
+                x: Math.round((clientX - rect.left) * (canvas.width / rect.width)),
+                y: Math.round((clientY - rect.top) * (canvas.height / rect.height))
             };
         }
 
-        canvas.addEventListener('touchstart', (e) => { drawing = true; const {x,y} = getCoords(e); ctx.moveTo(x,y); });
-        canvas.addEventListener('touchend', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('touchstart', (e) => {
+            drawing = true;
+            const {x, y} = getCoords(e);
+            currentPath = [x, y];
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        });
+
         canvas.addEventListener('touchmove', (e) => {
             if (!drawing) return;
             const {x, y} = getCoords(e);
+            currentPath.push(x, y);
             ctx.lineTo(x, y);
             ctx.stroke();
         });
 
-        document.getElementById('clear-btn').onclick = () => ctx.clearRect(0, 0, 100, 100);
+        canvas.addEventListener('touchend', () => {
+            drawing = false;
+            if (currentPath.length > 0) {
+                paths.push(currentPath.join(',')); // Сохраняем линию как строку "x1,y1,x2,y2..."
+            }
+        });
+
+        document.getElementById('clear-btn').onclick = () => {
+            ctx.clearRect(0, 0, 500, 500);
+            paths = [];
+        };
 
         tg.MainButton.setText("ОТПРАВИТЬ ❤️");
         tg.MainButton.show();
         
         tg.MainButton.onClick(() => {
-            // Качество 0.1 (минимум) для JPEG
-            const data = canvas.toDataURL('image/jpeg', 0.1);
-            
-            // Проверка размера строки (для отладки можно вывести alert(data.length))
-            if (data.length > 4096) {
-                alert("Рисунок слишком сложный! Очисти и нарисуй проще.");
+            // Формат: Линия1;Линия2;Линия3
+            const data = paths.join(';'); 
+            if (data.length > 4000) {
+                alert("Рисунок слишком длинный! Нарисуй чуть проще.");
             } else {
                 tg.sendData(data);
             }
