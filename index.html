@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; }
-        canvas { display: block; width: 100vw; height: 100vw; background: #fff; }
-        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px; background: #f44; color: #fff; border: none; border-radius: 10px; z-index: 100; font-weight: bold; }
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        body { margin: 0; padding: 0; background: #ffffff; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vw; background: #ffffff; touch-action: none; }
+        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px 20px; background: #ff4444; color: #fff; border: none; border-radius: 12px; z-index: 100; font-weight: bold; }
+        #status { position: fixed; bottom: 85px; width: 100%; text-align: center; color: #999; font-size: 14px; }
     </style>
 </head>
 <body>
     <button id="clear-btn">Очистить</button>
+    <div id="status">Нарисуй что-нибудь ❤️</div>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -23,13 +26,17 @@
         const res = 500;
         canvas.width = res; canvas.height = res;
 
-        ctx.strokeStyle = '#ff4081'; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        // Настройки кисти
+        ctx.strokeStyle = '#ff4081'; 
+        ctx.lineWidth = 12; 
+        ctx.lineCap = 'round'; 
+        ctx.lineJoin = 'round';
 
         let drawing = false;
-        let strokes = []; // Список всех мазков
+        let strokes = []; 
         let currentStroke = "";
 
-        // Функция сжатия: превращает число в 1 символ
+        // Сжатие: число 0-500 в 1 символ
         function encodeNum(num) { return String.fromCharCode(num + 32); }
 
         function getCoords(e) {
@@ -41,40 +48,69 @@
             };
         }
 
-        canvas.addEventListener('touchstart', (e) => {
+        // НАЧАЛО РИСОВАНИЯ
+        function start(e) {
             drawing = true;
             const {x, y} = getCoords(e);
-            ctx.beginPath(); ctx.moveTo(x, y);
+            
+            // Визуал для тебя
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            
+            // Данные для бота
             currentStroke = encodeNum(x) + encodeNum(y);
-            e.preventDefault();
-        }, {passive: false});
+            
+            if (e.cancelable) e.preventDefault();
+        }
 
-        canvas.addEventListener('touchmove', (e) => {
+        // ПРОЦЕСС РИСОВАНИЯ
+        function move(e) {
             if (!drawing) return;
             const {x, y} = getCoords(e);
-            ctx.lineTo(x, y); ctx.stroke();
-            currentStroke += encodeNum(x) + encodeNum(y);
-            e.preventDefault();
-        }, {passive: false});
 
-        canvas.addEventListener('touchend', () => {
+            // Визуал: рисуем линию на экране прямо сейчас
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            // Данные: записываем координаты в строку
+            currentStroke += encodeNum(x) + encodeNum(y);
+            
+            if (e.cancelable) e.preventDefault();
+        }
+
+        // КОНЕЦ МАЗКА
+        function stop() {
             if (!drawing) return;
             drawing = false;
-            strokes.push(currentStroke);
-        });
+            if (currentStroke.length > 2) {
+                strokes.push(currentStroke);
+            }
+        }
 
+        // Слушатели тача
+        canvas.addEventListener('touchstart', start, {passive: false});
+        canvas.addEventListener('touchmove', move, {passive: false});
+        canvas.addEventListener('touchend', stop);
+
+        // Кнопка очистки
         document.getElementById('clear-btn').onclick = () => {
             ctx.clearRect(0, 0, res, res);
             strokes = [];
+            document.getElementById('status').innerText = "Очищено!";
         };
 
         tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
         tg.MainButton.show();
+        
         tg.MainButton.onClick(() => {
             if (strokes.length === 0) return alert("Нарисуй что-нибудь!");
-            // Склеиваем мазки через разделитель "|"
             const data = strokes.join('|');
-            tg.sendData(data);
+            // Проверка лимита 4КБ (на всякий случай)
+            if (data.length > 4000) {
+                alert("Рисунок слишком сложный для анимации!");
+            } else {
+                tg.sendData(data);
+            }
         });
     </script>
 </body>
