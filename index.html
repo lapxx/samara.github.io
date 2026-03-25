@@ -1,0 +1,66 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #000; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; background: #fff; touch-action: none; }
+        .tools { position: fixed; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 10px; }
+        button { padding: 15px; border-radius: 50px; border: none; background: #248bcf; color: #fff; font-weight: bold; }
+        #clear { background: #e53935; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="tools">
+        <button id="clear">ОЧИСТИТЬ</button>
+        <button id="send">ОТПРАВИТЬ ❤️</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - 80;
+
+        ctx.strokeStyle = '#ff4081'; // Розовый цвет по дефолту
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+
+        let drawing = false;
+
+        function start(e) { drawing = true; draw(e); }
+        function end() { drawing = false; ctx.beginPath(); }
+        function draw(e) {
+            if (!drawing) return;
+            const x = e.clientX || e.touches[0].clientX;
+            const y = e.clientY || e.touches[0].clientY;
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('touchstart', start);
+        canvas.addEventListener('mouseup', end);
+        canvas.addEventListener('touchend', end);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchmove', draw);
+
+        document.getElementById('clear').onclick = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        document.getElementById('send').onclick = () => {
+            const data = canvas.toDataURL('image/png');
+            tg.sendData(data); 
+            tg.close();
+        };
+    </script>
+</body>
+</html>
