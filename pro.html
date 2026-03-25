@@ -8,42 +8,35 @@
         * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
         body { margin: 0; padding: 0; background: #121212; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: -apple-system, sans-serif; color: white; }
         
-        #progress-bg { width: 100%; height: 4px; background: #333; position: relative; }
+        #progress-bg { width: 100%; height: 4px; background: #333; }
         #progress-fill { height: 100%; width: 0%; background: #00e5ff; transition: width 0.1s; }
         
         #canvas-wrap { width: 100vw; height: 100vw; position: relative; background: #1e1e1e; }
-        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        canvas { display: block; width: 100%; height: 100%; }
         
-        .toolbar { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 10px; background: #121212; }
-        .row { display: flex; align-items: center; gap: 10px; width: 100%; }
+        .toolbar { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #121212; }
+        .row { display: flex; align-items: center; gap: 8px; width: 100%; }
         
-        /* Цвета кисти */
-        .scroll-x { display: flex; gap: 10px; overflow-x: auto; padding: 5px 0; -webkit-overflow-scrolling: touch; }
+        .scroll-x { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0; }
         .color-btn { min-width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; }
         .color-btn.active { border-color: #fff; transform: scale(1.1); box-shadow: 0 0 10px currentColor; }
         
-        /* Слайдер размера */
         #size-slider { flex: 1; height: 30px; -webkit-appearance: none; background: #333; border-radius: 15px; outline: none; }
-        #size-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #fff; border-radius: 50%; cursor: pointer; }
+        #size-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #fff; border-radius: 50%; }
         
-        /* Кнопки фона */
-        .bg-btn { width: 32px; height: 32px; border: 1px solid #444; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
-        .bg-btn.active { border-color: #00e5ff; box-shadow: 0 0 5px #00e5ff; }
+        .bg-btn { min-width: 32px; height: 32px; border: 1px solid #444; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+        .bg-btn.active { border-color: #00e5ff; }
 
-        .btn { background: #2a2a2a; border: none; color: white; padding: 10px; border-radius: 10px; font-weight: bold; flex: 1; text-align: center; }
+        .btn { background: #2a2a2a; border: none; color: white; padding: 10px; border-radius: 10px; font-weight: bold; flex: 1; font-size: 12px; }
         .btn:active { background: #444; }
-        .btn-red { background: #ff4444; }
+        #layer-btn { background: #6200ea; box-shadow: 0 0 10px rgba(98, 0, 234, 0.5); }
     </style>
 </head>
 <body>
     <div id="progress-bg"><div id="progress-fill"></div></div>
-    
-    <div id="canvas-wrap">
-        <canvas id="canvas"></canvas>
-    </div>
+    <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
 
     <div class="toolbar">
-        <!-- Цвета кисти -->
         <div class="scroll-x" id="brush-colors">
             <div class="color-btn active" style="background: #ff4081;" data-c="0"></div>
             <div class="color-btn" style="background: #00e5ff;" data-c="1"></div>
@@ -53,48 +46,42 @@
             <div class="color-btn" style="background: #ffffff;" data-c="5"></div>
         </div>
 
-        <!-- Размер и фон -->
         <div class="row">
-            <span style="font-size: 12px; min-width: 40px;">Кисть:</span>
             <input type="range" id="size-slider" min="2" max="40" value="10">
             <div class="scroll-x" id="bg-colors">
                 <div class="bg-btn active" style="background: #1e1e1e;" data-bg="0">⬛</div>
                 <div class="bg-btn" style="background: #ffffff;" data-bg="1">⬜</div>
                 <div class="bg-btn" style="background: #311b92;" data-bg="2">🟦</div>
-                <div class="bg-btn" style="background: #b71c1c;" data-bg="3">🟥</div>
             </div>
         </div>
 
-        <!-- Управление -->
         <div class="row">
-            <button class="btn" id="undo-btn">↩️ Шаг назад</button>
-            <button class="btn btn-red" id="clear-btn">🗑️ Очистить</button>
+            <button class="btn" id="layer-btn">✨ Слой (Синхронно)</button>
+            <button class="btn" id="undo-btn">↩️ Назад</button>
+            <button class="btn" id="clear-btn" style="background:#b71c1c">🗑️ Стереть</button>
         </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        try { tg.disableVerticalSwipes(); } catch(e){}
-
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const fill = document.getElementById('progress-fill');
         
         const COLORS = ['#ff4081', '#00e5ff', '#ffea00', '#b388ff', '#00ff00', '#ffffff'];
-        const BG_COLORS = ['#1e1e1e', '#ffffff', '#311b92', '#b71c1c'];
+        const BG_COLORS = ['#1e1e1e', '#ffffff', '#311b92'];
 
         let curC = 0, curS = 10, curBG = 0;
         let viewSize = window.innerWidth;
-        canvas.width = viewSize;
-        canvas.height = viewSize;
+        canvas.width = viewSize; canvas.height = viewSize;
 
-        let paths = [];
-        let currentPath = null;
+        // СТРУКТУРА: layers = [ [block1_paths], [block2_paths] ]
+        let layers = [[]]; 
         let isDrawing = false;
-        const MAX_BYTES = 3900;
+        const MAX_BYTES = 3800;
 
-        // Инициализация интерфейса
+        // Настройка UI
         document.querySelectorAll('#brush-colors .color-btn').forEach(btn => {
             btn.onclick = (e) => {
                 document.querySelector('#brush-colors .active').classList.remove('active');
@@ -114,70 +101,90 @@
         });
 
         document.getElementById('size-slider').oninput = (e) => { curS = parseInt(e.target.value); };
-        document.getElementById('undo-btn').onclick = () => { paths.pop(); redraw(); };
-        document.getElementById('clear-btn').onclick = () => { paths = []; redraw(); };
+        
+        document.getElementById('layer-btn').onclick = () => {
+            if (layers[layers.length-1].length > 0) {
+                layers.push([]);
+                tg.HapticFeedback.notificationOccurred('success');
+                redraw();
+            }
+        };
+
+        document.getElementById('undo-btn').onclick = () => {
+            let currLayer = layers[layers.length-1];
+            if (currLayer.length > 0) currLayer.pop();
+            else if (layers.length > 1) layers.pop();
+            redraw();
+        };
+
+        document.getElementById('clear-btn').onclick = () => { layers = [[]]; redraw(); };
 
         function toHex(n) { return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0'); }
 
         function redraw() {
             ctx.clearRect(0, 0, viewSize, viewSize);
-            paths.forEach(p => {
-                ctx.strokeStyle = COLORS[p.c];
-                ctx.lineWidth = p.s;
-                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(p.pts[0].x, p.pts[0].y);
-                p.pts.forEach(pt => ctx.lineTo(pt.x, pt.y));
-                ctx.stroke();
+            layers.forEach((layer, lIdx) => {
+                layer.forEach(p => {
+                    ctx.strokeStyle = COLORS[p.c];
+                    ctx.lineWidth = p.s;
+                    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(p.pts[0].x, p.pts[0].y);
+                    p.pts.forEach(pt => ctx.lineTo(pt.x, pt.y));
+                    ctx.stroke();
+                });
             });
             updateLimit();
         }
 
         function updateLimit() {
-            let len = 2; // BG prefix
-            paths.forEach(p => len += 5 + (p.pts.length * 4)); // ~ C SS HEX
-            fill.style.width = (len / MAX_BYTES * 100) + '%';
-            return len;
+            let str = "0|";
+            layers.forEach(l => {
+                l.forEach(p => { str += "~" + p.c + toHex(p.s) + "0000".repeat(p.pts.length); });
+                str += "|";
+            });
+            fill.style.width = (str.length / MAX_BYTES * 100) + '%';
+            return str.length;
         }
 
-        function down(e) {
+        canvas.addEventListener('touchstart', (e) => {
             if (updateLimit() >= MAX_BYTES) return;
             isDrawing = true;
             const rect = canvas.getBoundingClientRect();
-            const evt = e.touches ? e.touches[0] : e;
-            let x = evt.clientX - rect.left, y = evt.clientY - rect.top;
-            currentPath = { c: curC, s: curS, pts: [{x, y}] };
-            paths.push(currentPath);
+            const t = e.touches[0];
+            let x = t.clientX - rect.left, y = t.clientY - rect.top;
+            layers[layers.length-1].push({ c: curC, s: curS, pts: [{x, y}] });
             redraw();
-        }
+        });
 
-        function move(e) {
+        canvas.addEventListener('touchmove', (e) => {
             if (!isDrawing || updateLimit() >= MAX_BYTES) return;
             const rect = canvas.getBoundingClientRect();
-            const evt = e.touches ? e.touches[0] : e;
-            let x = evt.clientX - rect.left, y = evt.clientY - rect.top;
-            let last = currentPath.pts[currentPath.pts.length - 1];
-            if (Math.hypot(x-last.x, y-last.y) > 5) {
-                currentPath.pts.push({x, y});
+            const t = e.touches[0];
+            let x = t.clientX - rect.left, y = t.clientY - rect.top;
+            let currLayer = layers[layers.length-1];
+            let currPath = currLayer[currLayer.length-1];
+            let last = currPath.pts[currPath.pts.length - 1];
+            if (Math.hypot(x-last.x, y-last.y) > 4) {
+                currPath.pts.push({x, y});
                 redraw();
             }
-        }
+        });
 
-        canvas.addEventListener('touchstart', down);
-        canvas.addEventListener('touchmove', move);
         window.addEventListener('touchend', () => isDrawing = false);
 
-        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
+        tg.MainButton.setText("ОТПРАВИТЬ СЛОЯМИ ❤️");
         tg.MainButton.show();
         tg.MainButton.onClick(() => {
-            if (paths.length === 0) return;
-            // Протокол: BG_INDEX | ~ C SIZE_HEX X1Y1...
-            let data = curBG.toString(); 
-            paths.forEach(p => {
-                data += "~" + p.c + toHex(p.s); 
-                p.pts.forEach(pt => {
-                    data += toHex((pt.x / viewSize) * 255) + toHex((pt.y / viewSize) * 255);
+            let data = curBG + "|";
+            layers.forEach(layer => {
+                layer.forEach(p => {
+                    data += "~" + p.c + toHex(p.s);
+                    p.pts.forEach(pt => {
+                        data += toHex((pt.x / viewSize) * 255) + toHex((pt.y / viewSize) * 255);
+                    });
                 });
+                data += "|"; // Разделитель синхронных блоков
             });
             tg.sendData(data);
         });
