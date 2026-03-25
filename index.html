@@ -1,46 +1,80 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Подключаем скрипт Телеграма -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #000; overflow: hidden; font-family: sans-serif; }
-        canvas { display: block; background: #fff; touch-action: none; }
-        .tools { position: fixed; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 10px; }
-        button { padding: 15px; border-radius: 50px; border: none; background: #248bcf; color: #fff; font-weight: bold; }
-        #clear { background: #e53935; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #ffffff; 
+            overflow: hidden; 
+            touch-action: none; /* Запрещаем скролл при рисовании */
+        }
+        canvas { 
+            display: block; 
+            background: #fff; 
+        }
+        #clear-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px 15px;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border-radius: 10px;
+            border: none;
+            font-family: sans-serif;
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
+    <button id="clear-btn">Очистить</button>
     <canvas id="canvas"></canvas>
-    <div class="tools">
-        <button id="clear">ОЧИСТИТЬ</button>
-        <button id="send">ОТПРАВИТЬ ❤️</button>
-    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
+        tg.expand(); // Разворачиваем на весь экран
+
+        // Настраиваем "Главную кнопку" Телеграма
+        tg.MainButton.setText("ОТПРАВИТЬ ❤️");
+        tg.MainButton.show(); // Показываем её
+        tg.MainButton.enable();
 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight - 80;
+        
+        // Делаем размер холста под экран, но не больше 400px для экономии данных
+        const size = Math.min(window.innerWidth, 400);
+        canvas.width = size;
+        canvas.height = size;
+        canvas.style.width = window.innerWidth + 'px';
+        canvas.style.height = window.innerWidth + 'px';
 
-        ctx.strokeStyle = '#ff4081'; // Розовый цвет по дефолту
-        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#ff4081'; // Розовый цвет
+        ctx.lineWidth = 10;
         ctx.lineCap = 'round';
 
         let drawing = false;
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            return {
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
 
         function start(e) { drawing = true; draw(e); }
         function end() { drawing = false; ctx.beginPath(); }
         function draw(e) {
             if (!drawing) return;
-            const x = e.clientX || e.touches[0].clientX;
-            const y = e.clientY || e.touches[0].clientY;
+            const {x, y} = getCoords(e);
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
@@ -54,13 +88,17 @@
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('touchmove', draw);
 
-        document.getElementById('clear').onclick = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        document.getElementById('send').onclick = () => {
-            const data = canvas.toDataURL('image/png');
-            tg.sendData(data); 
-            tg.close();
+        // Кнопка очистки
+        document.getElementById('clear-btn').onclick = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
         };
+
+        // Обработка нажатия на Главную кнопку Телеграма (внизу экрана)
+        tg.MainButton.onClick(() => {
+            // Сжимаем максимально (качество 0.1), чтобы влезло в 4КБ лимит Телеграма
+            const data = canvas.toDataURL('image/jpeg', 0.1); 
+            tg.sendData(data); // Отправляем боту
+        });
     </script>
 </body>
 </html>
