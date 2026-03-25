@@ -6,32 +6,32 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
-        body { margin: 0; padding: 0; background: #121212; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; color: white; }
+        body { margin: 0; padding: 0; background: #f0f0f0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; color: #333; }
         
-        #progress-bg { width: 100%; height: 4px; background: #333; }
-        #progress-fill { height: 100%; width: 0%; background: #00e5ff; }
+        #progress-bg { width: 100%; height: 4px; background: #ddd; }
+        #progress-fill { height: 100%; width: 0%; background: #007aff; }
         
-        #canvas-wrap { width: 100vw; height: 100vw; position: relative; background: #1e1e1e; }
+        /* Холст теперь белый по умолчанию */
+        #canvas-wrap { width: 100vw; height: 100vw; position: relative; background: #ffffff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         canvas { display: block; width: 100%; height: 100%; }
         
-        .toolbar { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 10px; background: #121212; }
-        .row { display: flex; align-items: center; gap: 8px; width: 100%; }
+        .toolbar { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; border-top: 1px solid #ddd; }
+        .row { display: flex; align-items: center; gap: 10px; width: 100%; }
         
-        /* Выбор слоев */
         .layer-tabs { display: flex; gap: 5px; flex: 1; }
-        .layer-btn { background: #2a2a2a; border: 2px solid #444; color: #888; flex: 1; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
-        .layer-btn.active { border-color: #00e5ff; color: #fff; background: #333; }
-        .layer-btn.has-content { color: #ffea00; }
+        .layer-btn { background: #f8f8f8; border: 1px solid #ccc; color: #666; flex: 1; padding: 10px; border-radius: 10px; font-weight: bold; font-size: 14px; text-align: center; }
+        .layer-btn.active { border-color: #007aff; color: #007aff; background: #eef6ff; }
+        .layer-btn.has-content { background: #fff9c4; border-color: #fbc02d; }
 
-        .scroll-x { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
-        .color-btn { min-width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; }
-        .color-btn.active { border-color: #fff; transform: scale(1.1); }
+        .scroll-x { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 5px; }
+        .color-btn { min-width: 34px; height: 34px; border-radius: 50%; border: 2px solid #eee; }
+        .color-btn.active { border-color: #000; transform: scale(1.1); }
         
-        #size-slider { flex: 1; height: 30px; -webkit-appearance: none; background: #333; border-radius: 15px; outline: none; }
-        #size-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #fff; border-radius: 50%; }
+        #size-slider { flex: 1; height: 30px; -webkit-appearance: none; background: #eee; border-radius: 15px; outline: none; }
+        #size-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #007aff; border-radius: 50%; }
 
-        .btn { background: #2a2a2a; border: none; color: white; padding: 12px; border-radius: 10px; font-weight: bold; flex: 1; font-size: 13px; }
-        .btn:active { background: #444; }
+        .btn { background: #eee; border: none; color: #333; padding: 12px; border-radius: 10px; font-weight: bold; flex: 1; font-size: 13px; }
+        .btn:active { background: #ddd; }
     </style>
 </head>
 <body>
@@ -39,29 +39,29 @@
     <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
 
     <div class="toolbar">
-        <!-- СЛОИ -->
         <div class="row">
-            <span style="font-size: 12px;">СЛОЙ:</span>
+            <span style="font-size: 12px; font-weight: bold;">СЛОЙ:</span>
             <div class="layer-tabs">
                 <div class="layer-btn active" data-l="0">1</div>
                 <div class="layer-btn" data-l="1">2</div>
                 <div class="layer-btn" data-l="2">3</div>
                 <div class="layer-btn" data-l="3">4</div>
             </div>
-            <button class="btn" id="undo-btn" style="flex:0.5">↩️</button>
+            <button class="btn" id="undo-btn" style="flex:0.4">↩️ Назад</button>
         </div>
 
         <div class="scroll-x" id="brush-colors">
             <div class="color-btn active" style="background: #ff4081;" data-c="0"></div>
-            <div class="color-btn" style="background: #00e5ff;" data-c="1"></div>
-            <div class="color-btn" style="background: #ffea00;" data-c="2"></div>
-            <div class="color-btn" style="background: #b388ff;" data-c="3"></div>
-            <div class="color-btn" style="background: #ffffff;" data-c="4"></div>
+            <div class="color-btn" style="background: #007aff;" data-c="1"></div>
+            <div class="color-btn" style="background: #4caf50;" data-c="2"></div>
+            <div class="color-btn" style="background: #ff9800;" data-c="3"></div>
+            <div class="color-btn" style="background: #9c27b0;" data-c="4"></div>
+            <div class="color-btn" style="background: #000000;" data-c="5"></div> <!-- Черный вместо белого -->
         </div>
 
         <div class="row">
             <input type="range" id="size-slider" min="2" max="40" value="10">
-            <button class="btn" id="clear-btn" style="background:#b71c1c; flex:0.4">🗑️</button>
+            <button class="btn" id="clear-btn" style="background:#ffebee; color:#c62828; flex:0.4">🗑️ Очистить</button>
         </div>
     </div>
 
@@ -72,17 +72,15 @@
         const ctx = canvas.getContext('2d');
         const fill = document.getElementById('progress-fill');
         
-        const COLORS = ['#ff4081', '#00e5ff', '#ffea00', '#b388ff', '#ffffff'];
+        const COLORS = ['#ff4081', '#007aff', '#4caf50', '#ff9800', '#9c27b0', '#000000'];
         let curC = 0, curS = 10, curL = 0;
         let viewSize = window.innerWidth;
         canvas.width = viewSize; canvas.height = viewSize;
 
-        // layers = [ [], [], [], [] ] - 4 блока синхронного рисования
         let layers = [[], [], [], []]; 
         let isDrawing = false;
         const MAX_BYTES = 3900;
 
-        // UI слоев
         document.querySelectorAll('.layer-btn').forEach(btn => {
             btn.onclick = (e) => {
                 document.querySelector('.layer-btn.active').classList.remove('active');
@@ -126,7 +124,7 @@
         function toHex(n) { return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0'); }
 
         function updateLimit() {
-            let str = "0|";
+            let str = "1|"; // Фон всегда белый
             layers.forEach(l => {
                 l.forEach(p => { str += "~" + p.c + toHex(p.s) + "0000".repeat(p.pts.length); });
                 str += "|";
@@ -159,10 +157,10 @@
 
         window.addEventListener('touchend', () => isDrawing = false);
 
-        tg.MainButton.setText("ОТПРАВИТЬ ШЕДЕВР ❤️");
+        tg.MainButton.setText("ОТПРАВИТЬ ❤️");
         tg.MainButton.show();
         tg.MainButton.onClick(() => {
-            let data = "0|"; // BG (пока всегда 0)
+            let data = "1|"; // BG Белый
             layers.forEach(layer => {
                 layer.forEach(p => {
                     data += "~" + p.c + toHex(p.s);
