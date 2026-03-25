@@ -2,14 +2,34 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { -webkit-touch-callout: none; -webkit-user-select: none; }
-        body { margin: 0; padding: 0; background: #f8f8f8; overflow: hidden; touch-action: none; font-family: sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vw; background: #fff; border-bottom: 1px solid #ddd; }
-        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px 20px; background: #ff4444; color: #fff; border: none; border-radius: 12px; z-index: 100; font-weight: bold; }
-        #bar { position: fixed; top: 0; left: 0; height: 5px; background: #ff4081; width: 0%; z-index: 200; }
+        /* Жесткая блокировка всех системных жестов смартфона */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none; /* Отключает скролл и зум полностью */
+        }
+        body { 
+            margin: 0; padding: 0; background: #ffffff; 
+            overflow: hidden; font-family: sans-serif; 
+        }
+        canvas { 
+            display: block; 
+            background: #ffffff; 
+            width: 100vw; 
+            height: 100vw; 
+            touch-action: none;
+        }
+        #clear-btn { 
+            position: fixed; top: 15px; right: 15px; 
+            padding: 12px 20px; background: #ff4444; color: #fff; 
+            border: none; border-radius: 12px; z-index: 100; 
+            font-weight: bold;
+        }
+        #bar { position: fixed; top: 0; left: 0; height: 6px; background: #ff4081; width: 0%; z-index: 200; }
     </style>
 </head>
 <body>
@@ -23,10 +43,14 @@
 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const res = 256; // 0-255 диапазон для координат
+        const res = 256; 
         canvas.width = res; canvas.height = res;
 
-        ctx.strokeStyle = '#ff4081'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        // Настройка стиля кисти
+        ctx.strokeStyle = '#ff4081'; 
+        ctx.lineWidth = 10; 
+        ctx.lineCap = 'round'; 
+        ctx.lineJoin = 'round';
 
         let drawing = false;
         let data = ""; 
@@ -34,51 +58,46 @@
 
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
-            const t = e.touches ? e.touches[0] : e;
+            // PointerEvents работают одинаково для всех устройств
             return {
-                x: Math.max(0, Math.min(255, Math.round((t.clientX - rect.left) * (res / rect.width)))),
-                y: Math.max(0, Math.min(255, Math.round((t.clientY - rect.top) * (res / rect.height))))
+                x: Math.max(0, Math.min(255, Math.round((e.clientX - rect.left) * (res / rect.width)))),
+                y: Math.max(0, Math.min(255, Math.round((e.clientY - rect.top) * (res / rect.height))))
             };
         }
 
-        // Превращает число в 2 HEX символа (0 -> "00", 255 -> "ff")
         function toHex(n) { return n.toString(16).padStart(2, '0'); }
 
-        function start(e) {
+        // Универсальный обработчик начала нажатия
+        canvas.addEventListener('pointerdown', (e) => {
             drawing = true;
             const {x, y} = getCoords(e);
             ctx.beginPath();
             ctx.moveTo(x, y);
-            data += "!" + toHex(x) + toHex(y); // "!" - начало линии
+            data += "!" + toHex(x) + toHex(y);
             lastX = x; lastY = y;
-        }
+            // Ставим точку сразу при нажатии
+            ctx.arc(x, y, ctx.lineWidth/4, 0, Math.PI*2);
+            ctx.fill();
+        });
 
-        function move(e) {
+        // Универсальный обработчик движения
+        canvas.addEventListener('pointermove', (e) => {
             if (!drawing) return;
             const {x, y} = getCoords(e);
             
-            // Визуал
             ctx.lineTo(x, y);
             ctx.stroke();
 
-            // Пишем в строку только если сдвинулись
             if (Math.hypot(x - lastX, y - lastY) > 1) {
                 data += toHex(x) + toHex(y);
                 lastX = x; lastY = y;
             }
 
-            // Шкала лимита (4000 символов)
             document.getElementById('bar').style.width = (data.length / 4000 * 100) + "%";
-        }
+        });
 
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); }, {passive: false});
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); move(e); }, {passive: false});
-        canvas.addEventListener('touchend', () => { drawing = false; });
-        
-        // Для теста на ПК
-        canvas.addEventListener('mousedown', start);
-        canvas.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', () => drawing = false);
+        // Универсальный обработчик конца нажатия
+        window.addEventListener('pointerup', () => { drawing = false; });
 
         document.getElementById('clear-btn').onclick = () => {
             ctx.clearRect(0, 0, res, res);
@@ -90,8 +109,7 @@
         tg.MainButton.show();
         tg.MainButton.onClick(() => {
             if (data.length < 5) return alert("Нарисуй что-нибудь!");
-            if (data.length > 4000) alert("Слишком длинный рисунок!");
-            else tg.sendData(data);
+            tg.sendData(data);
         });
     </script>
 </body>
