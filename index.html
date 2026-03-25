@@ -5,47 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Запрещаем всё лишнее на уровне всей страницы */
-        * {
-            -webkit-touch-callout: none; /* Запрещает меню "сохранить" */
-            -webkit-user-select: none;    /* Запрещает выделение */
-            user-select: none;
-            -webkit-tap-highlight-color: transparent; /* Убирает синий квадрат при нажатии */
-        }
-
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background: #ffffff; 
-            overflow: hidden; 
-            touch-action: none; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
-        canvas { 
-            display: block; 
-            background: #ffffff; 
-            width: 100vw; 
-            height: 100vw; 
-            touch-action: none; /* Важно: отключает скролл браузера поверх холста */
-        }
-
-        #clear-btn { 
-            position: fixed; top: 15px; right: 15px; 
-            padding: 12px 24px; background: #ff4444; color: #fff; 
-            border: none; border-radius: 12px; z-index: 100; 
-            font-weight: bold; cursor: pointer;
-        }
-
-        #status { 
-            position: fixed; bottom: 85px; width: 100%; 
-            text-align: center; color: #999; font-size: 14px; 
-        }
+        body { margin: 0; padding: 0; background: #fff; overflow: hidden; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vw; background: #fff; }
+        #clear-btn { position: fixed; top: 15px; right: 15px; padding: 12px; background: #f44; color: #fff; border: none; border-radius: 10px; z-index: 100; font-weight: bold; }
     </style>
 </head>
 <body>
     <button id="clear-btn">Очистить</button>
-    <div id="status">Нарисуй что-нибудь ❤️</div>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -54,25 +20,20 @@
 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-
-        // Внутреннее разрешение для четкости в боте
         const res = 500;
-        canvas.width = res;
-        canvas.height = res;
+        canvas.width = res; canvas.height = res;
 
-        // Настройка кисти
-        ctx.strokeStyle = '#ff4081';
-        ctx.lineWidth = 12;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#ff4081'; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
         let drawing = false;
-        let paths = []; 
-        let currentPath = [];
+        let strokes = []; // Список всех мазков
+        let currentStroke = "";
+
+        // Функция сжатия: превращает число в 1 символ
+        function encodeNum(num) { return String.fromCharCode(num + 32); }
 
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
-            // Берем координаты либо из тача, либо из мышки
             const t = e.touches ? e.touches[0] : e;
             return {
                 x: Math.round((t.clientX - rect.left) * (res / rect.width)),
@@ -80,60 +41,39 @@
             };
         }
 
-        function start(e) {
+        canvas.addEventListener('touchstart', (e) => {
             drawing = true;
             const {x, y} = getCoords(e);
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            currentPath = [x, y];
-            // Блокируем стандартное поведение браузера (скролл/меню)
-            if (e.cancelable) e.preventDefault();
-        }
+            ctx.beginPath(); ctx.moveTo(x, y);
+            currentStroke = encodeNum(x) + encodeNum(y);
+            e.preventDefault();
+        }, {passive: false});
 
-        function move(e) {
+        canvas.addEventListener('touchmove', (e) => {
             if (!drawing) return;
             const {x, y} = getCoords(e);
-            
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            
-            currentPath.push(x, y);
-            if (e.cancelable) e.preventDefault();
-        }
+            ctx.lineTo(x, y); ctx.stroke();
+            currentStroke += encodeNum(x) + encodeNum(y);
+            e.preventDefault();
+        }, {passive: false});
 
-        function stop() {
+        canvas.addEventListener('touchend', () => {
             if (!drawing) return;
             drawing = false;
-            if (currentPath.length > 0) {
-                paths.push(currentPath.join(','));
-            }
-        }
-
-        // Слушатели для телефона (Touch) с жестким отключением пассивного режима
-        canvas.addEventListener('touchstart', start, {passive: false});
-        canvas.addEventListener('touchmove', move, {passive: false});
-        canvas.addEventListener('touchend', stop);
-
-        // Слушатели для компьютера (Mouse)
-        canvas.addEventListener('mousedown', start);
-        canvas.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', stop);
+            strokes.push(currentStroke);
+        });
 
         document.getElementById('clear-btn').onclick = () => {
             ctx.clearRect(0, 0, res, res);
-            paths = [];
-            document.getElementById('status').innerText = "Очищено!";
+            strokes = [];
         };
 
-        tg.MainButton.setText("ОТПРАВИТЬ ❤️");
+        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
         tg.MainButton.show();
-        
         tg.MainButton.onClick(() => {
-            if (paths.length === 0) {
-                alert("Сначала нарисуй что-нибудь!");
-                return;
-            }
-            const data = paths.join(';');
+            if (strokes.length === 0) return alert("Нарисуй что-нибудь!");
+            // Склеиваем мазки через разделитель "|"
+            const data = strokes.join('|');
             tg.sendData(data);
         });
     </script>
