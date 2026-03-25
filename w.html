@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Жесткая блокировка скролла на уровне CSS */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #fff; overflow: hidden; 
+            touch-action: none; overscroll-behavior: none; 
+        }
+        canvas { 
+            display: block; width: 100vw; height: 100vh; 
+            background: #fff; touch-action: none; 
+        }
+        #clear-btn { 
+            position: fixed; top: 15px; right: 15px; padding: 12px 20px; 
+            background: #ff4444; color: #fff; border: none; 
+            border-radius: 12px; font-weight: bold; z-index: 100; 
+        }
+        #bar { position: fixed; top: 0; left: 0; height: 6px; background: #ff4081; width: 0%; z-index: 200; }
+    </style>
+</head>
+<body>
+    <div id="bar"></div>
+    <button id="clear-btn">Очистить</button>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        
+        // ⚡️ ГЛАВНЫЙ ФИКС ДЛЯ ANDROID ⚡️
+        // Блокируем свайп вниз, закрывающий приложение
+        if (tg.disableVerticalSwipes) {
+            tg.disableVerticalSwipes();
+        }
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const res = 256; 
+        canvas.width = res; 
+        canvas.height = res;
+
+        ctx.strokeStyle = '#ff4081'; 
+        ctx.lineWidth = 10; 
+        ctx.lineCap = 'round'; 
+        ctx.lineJoin = 'round';
+
+        let drawing = false;
+        let data = ""; 
+        let lastX = -1, lastY = -1;
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: Math.max(0, Math.min(255, Math.round((clientX - rect.left) * (res / rect.width)))),
+                y: Math.max(0, Math.min(255, Math.round((clientY - rect.top) * (res / rect.height))))
+            };
+        }
+
+        function toHex(n) { return n.toString(16).padStart(2, '0'); }
+
+        function start(e) {
+            e.preventDefault();
+            drawing = true;
+            const {x, y} = getCoords(e);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x+0.1, y+0.1); 
+            ctx.stroke();
+            data += "!" + toHex(x) + toHex(y);
+            lastX = x; lastY = y;
+        }
+
+        function move(e) {
+            e.preventDefault();
+            if (!drawing) return;
+            const {x, y} = getCoords(e);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            if (Math.hypot(x - lastX, y - lastY) > 1) {
+                data += toHex(x) + toHex(y);
+                lastX = x; lastY = y;
+            }
+            document.getElementById('bar').style.width = (data.length / 4000 * 100) + "%";
+        }
+
+        function stop(e) { e.preventDefault(); drawing = false; }
+
+        canvas.addEventListener('touchstart', start, {passive: false});
+        canvas.addEventListener('touchmove', move, {passive: false});
+        canvas.addEventListener('touchend', stop, {passive: false});
+        canvas.addEventListener('touchcancel', stop, {passive: false});
+
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
+
+        document.getElementById('clear-btn').onclick = () => {
+            ctx.clearRect(0, 0, res, res);
+            data = "";
+            document.getElementById('bar').style.width = "0%";
+        };
+
+        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ ❤️");
+        tg.MainButton.show();
+        tg.MainButton.onClick(() => {
+            if (data.length < 5) return alert("Нарисуй что-нибудь!");
+            tg.sendData(data);
+        });
+    </script>
+</body>
+</html>
