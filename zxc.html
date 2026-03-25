@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Ядерный сброс всего: никаких системных выделений и скроллов */
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        body { background: #121212; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; }
+        
+        #header { color: white; padding: 15px; font-family: sans-serif; text-align: center; width: 100%; }
+        #counter { font-size: 14px; color: #00ffaa; font-family: monospace; }
+        
+        /* Квадратный холст, который мы ВИДИМ и на котором РИСУЕМ */
+        #canvas { background: #fff; width: 100vw; height: 100vw; display: block; border-bottom: 3px solid #ff4081; }
+        
+        .btn-wrap { margin-top: 20px; width: 100%; display: flex; justify-content: center; }
+        #clear-btn { background: #ff4444; color: white; border: none; padding: 15px 40px; border-radius: 10px; font-size: 16px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="header">Нарисуй анимацию 🎨<br><span id="counter">Данные: 0 / 4000</span></div>
+    <canvas id="canvas"></canvas>
+    <div class="btn-wrap"><button id="clear-btn">Стереть всё</button></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        try { tg.disableVerticalSwipes(); } catch(e){} // Отключаем свайп закрытия (если версия ТГ позволяет)
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const counter = document.getElementById('counter');
+
+        // Внутреннее разрешение (256x256), чтобы кодировать x,y в 2 символа HEX
+        const res = 256;
+        canvas.width = res;
+        canvas.height = res;
+
+        // Кисточка
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#ff4081';
+
+        let isDrawing = false;
+        let dataStr = "";
+        let lastX = -1, lastY = -1;
+
+        // Функция: переводим пиксели экрана в пиксели холста (0-255)
+        function getP(e) {
+            const rect = canvas.getBoundingClientRect();
+            const evt = e.touches ? e.touches[0] : e;
+            let x = (evt.clientX - rect.left) * (res / rect.width);
+            let y = (evt.clientY - rect.top) * (res / rect.height);
+            // Жестко ограничиваем от 0 до 255
+            x = Math.max(0, Math.min(255, Math.round(x)));
+            y = Math.max(0, Math.min(255, Math.round(y)));
+            return {x, y};
+        }
+
+        // Функция: число в HEX (например, 255 -> "ff")
+        function toHex(n) { return n.toString(16).padStart(2, '0'); }
+
+        // ОБРАБОТЧИКИ
+        function down(e) {
+            e.preventDefault();
+            isDrawing = true;
+            const {x, y} = getP(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 0.1, y + 0.1); // Рисуем точку
+            ctx.stroke();
+
+            dataStr += "!" + toHex(x) + toHex(y); // "!" - маркер новой линии
+            lastX = x; lastY = y;
+            updateCounter();
+        }
+
+        function move(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const {x, y} = getP(e);
+            
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            // Оптимизация: пишем точку только если палец сдвинулся
+            if (Math.abs(x - lastX) > 1 || Math.abs(y - lastY) > 1) {
+                dataStr += toHex(x) + toHex(y);
+                lastX = x; lastY = y;
+                updateCounter();
+            }
+        }
+
+        function up(e) {
+            e.preventDefault();
+            isDrawing = false;
+        }
+
+        function updateCounter() {
+            counter.innerText = `Данные: ${dataStr.length} / 4000`;
+            if (dataStr.length > 3900) counter.style.color = "#ff4444";
+            else counter.style.color = "#00ffaa";
+        }
+
+        // ВЕШАЕМ СЛУШАТЕЛИ С passive: false (КРИТИЧНО ДЛЯ АНДРОИДА)
+        canvas.addEventListener('touchstart', down, {passive: false});
+        canvas.addEventListener('touchmove', move, {passive: false});
+        canvas.addEventListener('touchend', up, {passive: false});
+        canvas.addEventListener('touchcancel', up, {passive: false});
+
+        // Слушатели для мышки (чтобы работало с компа)
+        canvas.addEventListener('mousedown', down);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+
+        // Кнопка очистки
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            ctx.clearRect(0, 0, res, res);
+            dataStr = "";
+            updateCounter();
+        });
+
+        // Кнопка отправки в ТГ
+        tg.MainButton.setText("ОТПРАВИТЬ АНИМАЦИЮ");
+        tg.MainButton.show();
+        tg.MainButton.onClick(() => {
+            if (dataStr.length < 5) return tg.showAlert("Нарисуй хоть что-то!");
+            if (dataStr.length > 4000) return tg.showAlert("Слишком сложный рисунок, сотри часть!");
+            tg.sendData(dataStr);
+        });
+
+        tg.ready(); // Сообщаем телеграму, что аппка загружена
+    </script>
+</body>
+</html>
